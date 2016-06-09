@@ -1,210 +1,80 @@
-import time, random, pygame, sys
+import struct, time
 
-pygame.init()
+def unpack(bin_file, data_type, length_arg=0):
+	#integer or unsigned integer
+	if data_type == "i" or data_type == "I":
+		return int(struct.unpack(data_type, bin_file.read(4))[0])
+	#short or unsigned short
+	elif data_type == "h" or data_type == "H":
+		return int(struct.unpack(data_type, bin_file.read(2))[0])
+	#string
+	elif data_type == "s":
+		return struct.unpack(str(length_arg) + data_type, bin_file.read(length_arg))[0]
+	#char
+	elif data_type == "c":
+		return struct.unpack(data_type, bin_file.read(1))[0]
+	#byte or unsigned byte
+	elif data_type == "b" or data_type == "B":
+		return int(struct.unpack(data_type, bin_file.read(1))[0])
 
-screen = pygame.display.set_mode([1000, 1000])
+def draw_prefab(prefab):
+	import pygame, random
 
-block_colors = {
-	"0": (0, 0, 0),
-}
+	colors = {}
 
-SETTINGS = {
-	"version": 0,
-	"tile_size": 8,
-}
+	rect_size = 10
 
-INFO = {
-	"xMultiplier": 0,
-	"yMultiplier": 0,
-	"xOffset": 0,
-	"yOffset": 200,
-	"layer": 0,
-}
+	image = pygame.surface.Surface((2*prefab["size_x"]*rect_size+(prefab["size_z"]*rect_size), 2*prefab["size_y"]*rect_size+(prefab["size_z"]*rect_size)))
 
-class Prefab(object):
-	def __init__(self, size):
-		self.size = size
-		
-		self.current_layer = 0
-		self.y = self.size[0]*SETTINGS["tile_size"]
-		self.x = self.size[2]*SETTINGS["tile_size"]
-		
-		self.layers = [Layer(0)]
-		
-	def add_block(self, id):
-		new_block = Block([self.x, self.y], id)
-	
-		#try to add block to appropriate layer, if non-existent, make a new layer
-		try:
-			self.layers[self.current_layer].blocks.append(new_block)
-		except:
-			self.layers.append(Layer(self.current_layer))
-			self.layers[self.current_layer].blocks.append(new_block)
+	z = 0
+	for each_layer in prefab["layers"]:
+		y = 0
+		for each_row in each_layer:
+			x = 0
+			for each_block in each_row:
+				if each_block != 0:
+					if each_block not in colors:
+						colors[each_block] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
+					draw_color = colors[each_block]
+					draw_rect = (x*rect_size + (z*rect_size), -y*rect_size + (z*rect_size) + prefab["size_y"]*rect_size, rect_size, rect_size)
 
-		self.y -= SETTINGS["tile_size"]
-		if self.y <= 0:
-			self.y = self.size[0]*SETTINGS["tile_size"]
-			self.x -= SETTINGS["tile_size"]
-			
-		if self.x <= 0:
-			self.y = self.size[0]*SETTINGS["tile_size"]
-			self.x = self.size[2]*SETTINGS["tile_size"]
-			self.current_layer += 1
-			
-	def draw(self, index):
-		screen.fill([0, 0, 0])
-	
-		#print("drawing layer " + str(index))
-		self.layers[index].draw()
-	
-	def draw3d(self):
-		screen.fill([0, 0, 0])
-		for each_layer in self.layers:
-			if each_layer.index <= INFO["layer"]:
-				each_layer.draw()
-	
-class Layer(object):
-	def __init__(self, index):
-		self.index = index
-	
-		self.blocks = []
-		
-	def draw(self):
-		#print("layer drawing " + str(len(self.blocks)) + " different blocks")
-	
-		for each_block in self.blocks:
-			each_block.draw(self.index*INFO["xMultiplier"] + INFO["xOffset"], self.index*INFO["yMultiplier"] + INFO["yOffset"])
-	
-class Block(object):
-	def __init__(self, pos, id):
-		self.pos = pos
-		self.id = id
-	
-	def draw(self, offsetX, offsetY):
-		if self.id != "0":
-			pygame.draw.rect(screen, block_colors[self.id], (self.pos[0] + offsetX, self.pos[1] + offsetY, SETTINGS["tile_size"], SETTINGS["tile_size"]), 0)
-			pygame.draw.rect(screen, (0, 0, 0), (self.pos[0] + offsetX, self.pos[1] + offsetY, SETTINGS["tile_size"], SETTINGS["tile_size"]), 1)
-	
-def read_integer(file, size):
-	bin_int = file.read(size)
-	
-	bin_int = ":".join("{0:x}".format(ord(c)) for c in bin_int)
-	
-	bytes = bin_int.split(":")
-		
-	i = -1
-	for each_byte in bytes:
-		i += 1
-		#pads hex values with zeros
-		if len(each_byte) == 1:
-			bytes[i] = "0" + each_byte
+					pygame.draw.rect(image, draw_color, draw_rect, 0)
+					pygame.draw.rect(image, (0, 0, 0), draw_rect, 1)
+				x += 1
+			y += 1
+		z += 1
 
-	#reverse order of the bytes
-	bytes = bytes[::-1]
-	
-	#make hex string of bytes
-	int_string = "0x"
-	for each_byte in bytes:
-		int_string += each_byte
+	pygame.image.save(image, "output.png")
 
-	#converts hex string to dec int
-	return int(int_string, 0)
-	
-	
+
 def main():
-	dim_list = []
+	file_name = raw_input("TTS FILE?: ")
+	bin_file = open(file_name, "rb")
 
-	file_name = raw_input("tts file to display: ")
-	
-	print("loading file...")
-	tts_file = open(file_name + ".tts", "rb")
-	
-	#tts in ascii
-	tts_file.read(4)
-	
-	#version
-	SETTINGS["version"] = read_integer(tts_file, 4)
-	print("FILE VERSION " + str(SETTINGS["version"]))
-	
-	#dimensions
-	for each_dim in range(3):
-		dim_list.append(read_integer(tts_file, 2))
-		
-	print("DIMENSIONS: " + str(dim_list))
-	
-	#extra header data
-	tts_file.read(2)
-	
-	#old version of prefabs
-	if SETTINGS["version"] == 4 or SETTINGS["version"] == 3:
-		prefab = Prefab((dim_list[1], dim_list[0], dim_list[2]))
-	#up to date version
-	else:
-		prefab = Prefab((dim_list[0], dim_list[2], dim_list[1]))
-	
-	#read blocks and add them to prefab
-	reading = True
-	while(reading):
-		#try to read next block, if cannot be read, stop reading
-		try:
-			block_id = str(read_integer(tts_file, 4))
-		except:
-			reading = False
-			break
-			
-		#add new block color if block has never been seen before
-		if block_id not in block_colors:
-			block_colors[block_id] = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-			#print("Added new block color for ID: " + hex(int(block_id)) + ", COLOR: " + str(block_colors[block_id]))
+	prefab = {}
 
-		#add the block to the prefab
-		prefab.add_block(block_id)
-		
-	#flip prefab layers because prefab is read inverted
-	prefab.layers = prefab.layers[::-1]
-		
-	INFO["layer"] = len(prefab.layers) - 1
-	
-	print("loaded!")
-	
-	prefab.draw3d()
-	pygame.display.flip()
-	
-	while(True):
-		mouse_pressed = pygame.mouse.get_pressed()
-		mouse_rel = pygame.mouse.get_rel()
-		if mouse_pressed[0]:
-			INFO["xOffset"] += mouse_rel[0]
-			INFO["yOffset"] += mouse_rel[1]
+	prefab["header"] = unpack(bin_file, "s", 8)
+	prefab["size_z"] = unpack(bin_file, "H")
+	prefab["size_y"] = unpack(bin_file, "H")
+	prefab["size_x"] = unpack(bin_file, "H")
 
-			prefab.draw3d()
-			pygame.display.flip()
-	
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
-				sys.exit(0)
-			if event.type == pygame.KEYDOWN:
-				if event.key == pygame.K_LEFT:
-					INFO["xMultiplier"] -= 1
-				if event.key == pygame.K_RIGHT:
-					INFO["xMultiplier"] += 1
-				if event.key == pygame.K_UP:
-					INFO["yMultiplier"] -= 1
-				if event.key == pygame.K_DOWN:
-					INFO["yMultiplier"] += 1
-					
-				if event.key == pygame.K_w:
-					if INFO["layer"] > 0:
-						INFO["layer"] -= 1
-				if event.key == pygame.K_s:
-					INFO["layer"] += 1
-				if event.key == pygame.K_a:
-					INFO["xOffset"] -= SETTINGS["tile_size"]
-				if event.key == pygame.K_d:
-					INFO["xOffset"] += SETTINGS["tile_size"]
-					
-				#only redraw if a key was pressed, meaning the image likely changed
-				prefab.draw3d()
-				pygame.display.flip()
-			
+	dimensions = [prefab["size_x"], prefab["size_y"], prefab["size_z"]]
+
+	prefab["layers"] = []
+
+	for layer_index in range(dimensions[0]):
+		prefab["layers"].append([])
+		for row_index in range(dimensions[1]):
+			prefab["layers"][layer_index].append([])
+			for block_index in range(dimensions[2]):
+				prefab["layers"][layer_index][row_index].append(None)
+				value = unpack(bin_file, "I")
+				prev_value = prefab["layers"][layer_index][row_index][block_index]
+
+				prefab["layers"][layer_index][row_index][block_index] = value
+
+				#print("prev_value: " + str(prev_value) + " value: " + str(value) + " index: [" + str(layer_index) + "][" + str(row_index) + "][" + str(block_index) + "]")
+
+	draw_prefab(prefab)
+
 main()
