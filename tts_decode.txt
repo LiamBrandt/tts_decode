@@ -1,0 +1,7 @@
+first 3 bytes are tts in ascii
+next 5 bytes unknown
+next 6 bytes are size of prefab, (3  2 bytes integers)
+	ex. 3600 turns into 0036, decimal 54, so the prefab is 54*54*54
+	
+	
+2916
